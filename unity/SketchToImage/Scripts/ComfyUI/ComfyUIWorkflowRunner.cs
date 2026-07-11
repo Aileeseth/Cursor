@@ -28,9 +28,15 @@ namespace SketchToImage.ComfyUI
 
         public void GenerateFromSketch(Texture2D sketch, Action<Texture2D> onSuccess, Action<string> onError)
         {
-            if (settings == null || settings.workflowJson == null)
+            if (settings == null)
             {
-                onError?.Invoke("Workflow JSON not configured.");
+                onError?.Invoke("ComfyUI Settings not assigned.");
+                return;
+            }
+
+            if (!settings.TryGetWorkflowText(out _, out var configError))
+            {
+                onError?.Invoke(configError);
                 return;
             }
 
@@ -39,6 +45,12 @@ namespace SketchToImage.ComfyUI
 
         IEnumerator GenerateCoroutine(Texture2D sketch, Action<Texture2D> onSuccess, Action<string> onError)
         {
+            if (!settings.TryGetWorkflowText(out var workflowText, out var configError))
+            {
+                onError?.Invoke(configError);
+                yield break;
+            }
+
             var prepared = PrepareSketch(sketch);
             var png = prepared.EncodeToPNG();
             Destroy(prepared);
@@ -60,7 +72,7 @@ namespace SketchToImage.ComfyUI
             string promptJson;
             try
             {
-                promptJson = PatchWorkflow(settings.workflowJson.text, uploadResult.name);
+                promptJson = PatchWorkflow(workflowText, uploadResult.name);
             }
             catch (Exception ex)
             {

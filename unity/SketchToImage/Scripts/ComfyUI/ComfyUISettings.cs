@@ -1,3 +1,4 @@
+using System.IO;
 using UnityEngine;
 
 namespace SketchToImage.ComfyUI
@@ -10,11 +11,43 @@ namespace SketchToImage.ComfyUI
         public string baseUrl = "http://127.0.0.1:8188";
 
         [Header("Workflow")]
-        [Tooltip("Export from ComfyUI: Save (API Format). Place in StreamingAssets.")]
+        [Tooltip("Option A: drag workflow_api.json from Project window here.")]
         public TextAsset workflowJson;
+
+        [Tooltip("Option B: if drag fails, put file in Assets/StreamingAssets/ and type filename here.")]
+        public string workflowFileName = "workflow_api.json";
 
         [Tooltip("Load Image node id in workflow_api.json, e.g. \"14\"")]
         public string loadImageNodeId = "14";
+
+        public bool TryGetWorkflowText(out string text, out string error)
+        {
+            if (workflowJson != null)
+            {
+                text = workflowJson.text;
+                error = null;
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(workflowFileName))
+            {
+                text = null;
+                error = "Workflow not set. Drag workflow_api.json to Workflow Json, or fill Workflow File Name.";
+                return false;
+            }
+
+            var path = Path.Combine(Application.streamingAssetsPath, workflowFileName);
+            if (!File.Exists(path))
+            {
+                text = null;
+                error = $"Workflow file not found: {path}";
+                return false;
+            }
+
+            text = File.ReadAllText(path);
+            error = null;
+            return true;
+        }
 
         [Header("Generation")]
         public int sketchSize = 512;

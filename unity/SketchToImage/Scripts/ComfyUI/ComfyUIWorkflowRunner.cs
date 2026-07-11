@@ -14,6 +14,9 @@ namespace SketchToImage.ComfyUI
         [SerializeField] ComfyUISettings settings;
 
         ComfyUIClient _client;
+        bool _isRunning;
+
+        public bool IsBusy => _isRunning;
 
         void Awake()
         {
@@ -28,6 +31,8 @@ namespace SketchToImage.ComfyUI
 
         public void GenerateFromSketch(Texture2D sketch, Action<Texture2D> onSuccess, Action<string> onError)
         {
+            if (_isRunning) return;
+
             if (settings == null)
             {
                 onError?.Invoke("ComfyUI Settings not assigned.");
@@ -45,8 +50,11 @@ namespace SketchToImage.ComfyUI
 
         IEnumerator GenerateCoroutine(Texture2D sketch, Action<Texture2D> onSuccess, Action<string> onError)
         {
+            _isRunning = true;
+
             if (!settings.TryGetWorkflowText(out var workflowText, out var configError))
             {
+                _isRunning = false;
                 onError?.Invoke(configError);
                 yield break;
             }
@@ -65,6 +73,7 @@ namespace SketchToImage.ComfyUI
 
             if (uploadResult == null)
             {
+                _isRunning = false;
                 onError?.Invoke(uploadError ?? "Upload failed.");
                 yield break;
             }
@@ -76,6 +85,7 @@ namespace SketchToImage.ComfyUI
             }
             catch (Exception ex)
             {
+                _isRunning = false;
                 onError?.Invoke($"Workflow patch failed: {ex.Message}");
                 yield break;
             }
@@ -88,6 +98,7 @@ namespace SketchToImage.ComfyUI
 
             if (string.IsNullOrEmpty(promptId))
             {
+                _isRunning = false;
                 onError?.Invoke(queueError ?? "Queue failed.");
                 yield break;
             }
@@ -100,6 +111,7 @@ namespace SketchToImage.ComfyUI
 
             if (outputImage == null)
             {
+                _isRunning = false;
                 onError?.Invoke(waitError ?? "No output image.");
                 yield break;
             }
@@ -109,6 +121,8 @@ namespace SketchToImage.ComfyUI
             yield return _client.DownloadTexture(outputImage,
                 tex => result = tex,
                 e => downloadError = e);
+
+            _isRunning = false;
 
             if (result == null)
             {

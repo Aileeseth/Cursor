@@ -1,19 +1,12 @@
-using System.Collections;
 using SketchToImage.ComfyUI;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace SketchToImage.UI
 {
-    public enum ExhibitionState
-    {
-        Drawing,
-        Generating,
-        ShowingResult
-    }
-
     /// <summary>
-    /// Exhibition flow: draw sketch -> confirm -> ComfyUI refine -> show on display.
+    /// Draw on pad while auto-sending sketch to ComfyUI every interval.
+    /// No generating/result page switch — big screen updates when ready.
     /// </summary>
     public class ExhibitionController : MonoBehaviour
     {
@@ -28,8 +21,13 @@ namespace SketchToImage.UI
         [SerializeField] Button clearButton;
         [SerializeField] Button homeButton;
 
-        ExhibitionState _state = ExhibitionState.Drawing;
+        [Header("Auto Send")]
+        [SerializeField] bool autoSendEnabled = true;
+        [SerializeField] float autoSendInterval = 1f;
+
         Texture2D _resultTexture;
+        float _autoSendTimer;
+        bool _autoSendActive = true;
 
         void Start()
         {
@@ -40,6 +38,19 @@ namespace SketchToImage.UI
             GoHome();
         }
 
+        void Update()
+        {
+            if (!_autoSendActive || !autoSendEnabled) return;
+            if (sketchPad == null || workflowRunner == null) return;
+            if (workflowRunner.IsBusy) return;
+
+            _autoSendTimer += Time.deltaTime;
+            if (_autoSendTimer < autoSendInterval) return;
+
+            _autoSendTimer = 0f;
+            RequestGenerate();
+        }
+
         void OnDestroy()
         {
             if (_resultTexture != null)
@@ -48,10 +59,14 @@ namespace SketchToImage.UI
 
         public void OnConfirm()
         {
-            if (_state != ExhibitionState.Drawing) return;
-            if (sketchPad == null || workflowRunner == null) return;
+            _autoSendTimer = 0f;
+            RequestGenerate();
+        }
 
-            SetState(ExhibitionState.Generating);
+        void RequestGenerate()
+        {
+            if (sketchPad == null || workflowRunner == null) return;
+            if (workflowRunner.IsBusy) return;
 
             workflowRunner.GenerateFromSketch(
                 sketchPad.GetSketchTexture(),
@@ -67,15 +82,11 @@ namespace SketchToImage.UI
             _resultTexture = refined;
             if (bigScreenImage != null)
                 bigScreenImage.texture = _resultTexture;
-
-            SetState(ExhibitionState.ShowingResult);
         }
 
         void OnGenerateFailed(string error)
         {
             Debug.LogWarning($"[Exhibition] Generate failed: {error}");
-            // Stay calm for exhibition: return to drawing, no blocking error UI required.
-            SetState(ExhibitionState.Drawing);
         }
 
         public void OnClear()
@@ -85,6 +96,8 @@ namespace SketchToImage.UI
 
         public void GoHome()
         {
+            _autoSendTimer = 0f;
+
             if (_resultTexture != null)
             {
                 Destroy(_resultTexture);
@@ -95,19 +108,23 @@ namespace SketchToImage.UI
                 bigScreenImage.texture = null;
 
             sketchPad?.Clear();
-            SetState(ExhibitionState.Drawing);
+            ApplyDrawingLayout();
         }
 
-        void SetState(ExhibitionState state)
+        void ApplyDrawingLayout()
         {
-            _state = state;
-
-            if (drawingPanel != null) drawingPanel.SetActive(state == ExhibitionState.Drawing);
-            if (generatingPanel != null) generatingPanel.SetActive(state == ExhibitionState.Generating);
-            if (resultPanel != null) resultPanel.SetActive(state == ExhibitionState.ShowingResult);
+            if (drawingPanel != null) drawingPanel.SetActive(true);
+            if (generatingPanel != null) generatingPanel.SetActive(false);
+            if (resultPanel != null) resultPanel.SetActive(false);
 
             if (confirmButton != null)
-                confirmButton.interactable = state == ExhibitionState.Drawing;
+                confirmButton.interactable = true;
+        }
+
+        public void SetAutoSendActive(bool active)
+        {
+            _autoSendActive = active;
+            if (active) _autoSendTimer = 0f;
         }
     }
 }

@@ -1,12 +1,13 @@
 using SketchToImage.ComfyUI;
+using SketchToImage.Config;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace SketchToImage.UI
 {
     /// <summary>
-    /// Draw on pad while auto-sending sketch to ComfyUI every interval.
-    /// No generating/result page switch — big screen updates when ready.
+    /// Auto-sends sketch to ComfyUI when the drawing has changed.
+    /// Refresh interval loaded from StreamingAssets/exhibition_config.json.
     /// </summary>
     public class ExhibitionController : MonoBehaviour
     {
@@ -21,16 +22,27 @@ namespace SketchToImage.UI
         [SerializeField] Button clearButton;
         [SerializeField] Button homeButton;
 
-        [Header("Auto Send")]
+        [Header("Color Buttons (optional)")]
+        [SerializeField] Button[] colorButtons;
+
+        [Header("External Config")]
+        [SerializeField] string configFileName = ExhibitionRuntimeConfig.DefaultFileName;
+        [SerializeField] bool useExternalConfig = true;
+
+        [Header("Fallback (if config missing)")]
         [SerializeField] bool autoSendEnabled = true;
         [SerializeField] float autoSendInterval = 1f;
 
         Texture2D _resultTexture;
         float _autoSendTimer;
         bool _autoSendActive = true;
+        ExhibitionRuntimeConfigData _runtimeConfig;
 
         void Start()
         {
+            LoadRuntimeConfig();
+            BindColorButtons();
+
             if (confirmButton != null) confirmButton.onClick.AddListener(OnConfirm);
             if (clearButton != null) clearButton.onClick.AddListener(OnClear);
             if (homeButton != null) homeButton.onClick.AddListener(GoHome);
@@ -38,14 +50,38 @@ namespace SketchToImage.UI
             GoHome();
         }
 
+        void LoadRuntimeConfig()
+        {
+            _runtimeConfig = useExternalConfig
+                ? ExhibitionRuntimeConfig.Load(configFileName)
+                : new ExhibitionRuntimeConfigData
+                {
+                    autoSendEnabled = autoSendEnabled,
+                    autoSendInterval = autoSendInterval
+                };
+        }
+
+        void BindColorButtons()
+        {
+            if (sketchPad == null || colorButtons == null) return;
+
+            for (var i = 0; i < colorButtons.Length; i++)
+            {
+                if (colorButtons[i] == null) continue;
+                var index = i;
+                colorButtons[i].onClick.AddListener(() => sketchPad.SetBrushColorIndex(index));
+            }
+        }
+
         void Update()
         {
-            if (!_autoSendActive || !autoSendEnabled) return;
+            if (!_autoSendActive || _runtimeConfig == null || !_runtimeConfig.autoSendEnabled) return;
             if (sketchPad == null || workflowRunner == null) return;
+            if (!sketchPad.HasChanges) return;
             if (workflowRunner.IsBusy) return;
 
             _autoSendTimer += Time.deltaTime;
-            if (_autoSendTimer < autoSendInterval) return;
+            if (_autoSendTimer < _runtimeConfig.autoSendInterval) return;
 
             _autoSendTimer = 0f;
             RequestGenerate();
@@ -59,6 +95,7 @@ namespace SketchToImage.UI
 
         public void OnConfirm()
         {
+            if (sketchPad == null || !sketchPad.HasChanges) return;
             _autoSendTimer = 0f;
             RequestGenerate();
         }
@@ -66,6 +103,7 @@ namespace SketchToImage.UI
         void RequestGenerate()
         {
             if (sketchPad == null || workflowRunner == null) return;
+            if (!sketchPad.HasChanges) return;
             if (workflowRunner.IsBusy) return;
 
             workflowRunner.GenerateFromSketch(
@@ -76,6 +114,8 @@ namespace SketchToImage.UI
 
         void OnGenerateSuccess(Texture2D refined)
         {
+            sketchPad?.MarkClean();
+
             if (_resultTexture != null)
                 Destroy(_resultTexture);
 
@@ -108,6 +148,7 @@ namespace SketchToImage.UI
                 bigScreenImage.texture = null;
 
             sketchPad?.Clear();
+            sketchPad?.MarkClean();
             ApplyDrawingLayout();
         }
 
@@ -125,6 +166,12 @@ namespace SketchToImage.UI
         {
             _autoSendActive = active;
             if (active) _autoSendTimer = 0f;
+        }
+
+        public void ReloadRuntimeConfig()
+        {
+            LoadRuntimeConfig();
+            _autoSendTimer = 0f;
         }
     }
 }

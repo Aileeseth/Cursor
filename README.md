@@ -1,22 +1,16 @@
 # 图片预览
 
-一个静态页面。背景中间是一块 **16:9** 画面，图片地址写在网址后面，页面上可以保存这张图。没有构建步骤，也没有后端。
+给扫码用的静态页。手机打开后只有背景、一块 16:9 的图，和「保存到本地」。没有输入框。Unity 把图片传到 OSS 后，把图片地址拼在这个网页后面，生成二维码。
 
-## 打开一张图
+## 拼接
 
-把 OSS 图片地址放在 `?url=` 后面。地址本身要编码，页面上的输入框会自动处理：
+网页地址末尾加 `?`，再接图片的完整地址：
 
 ```text
-https://你的域名/?url=https%3A%2F%2Fbucket.oss-cn-hangzhou.aliyuncs.com%2Fphoto.jpg
+https://你的域名/index.html?https://bucket.oss-cn-hangzhou.aliyuncs.com/photo.jpg
 ```
 
-也认这些写法：
-
-- `?src=`、`?img=`、`?image=`
-- `?key=photo.jpg`：补成当前网站域名下的对象，适合图片和网页在同一个 Bucket
-- `#https://...`：公开图片可以直接贴在 `#` 后面
-
-带 `Expires`、`Signature` 的签名链接含有 `&`。用输入框粘贴，或自己把整段地址做一次 URL 编码后放进 `?url=`。
+签名链接里的 `&` 可以原样接在后面。也认 `?url=`、`?img=`、`?key=对象路径`，以及 `#` 后面直接接图片地址。
 
 ## 可以直接放到 OSS 吗
 
@@ -30,7 +24,7 @@ https://你的域名/?url=https%3A%2F%2Fbucket.oss-cn-hangzhou.aliyuncs.com%2Fph
 2. 上传 `index.html`。确认元数据里 `Content-Type` 是 `text/html`，不要把 `Content-Disposition` 设成 `attachment`。
 3. 打开 **数据管理 → 静态页面**，默认首页填 `index.html`。这样访问域名根路径会打开本页。
 4. 在 **域名管理** 绑定已备案的域名，并把它 CNAME 到 Bucket 的外网域名。用这个域名访问。
-5. 打开 `https://你的域名/?url=` 加上编码后的图片地址。
+5. 二维码内容用 `https://你的域名/index.html?` 接上图片地址。
 
 图片也尽量走自定义域名。部分地域的 OSS 默认域名会同样强制下载图片，`<img>` 会加载失败。
 
@@ -38,7 +32,7 @@ https://你的域名/?url=https%3A%2F%2Fbucket.oss-cn-hangzhou.aliyuncs.com%2Fph
 
 ### 保存图片
 
-- 图片和网页在同一个域名下时，点「保存图片」直接下载原文件。
+- 图片和网页在同一个域名下时，点「保存到本地」直接下载原文件。iPhone 会弹出系统分享，从里面存到照片。
 - 不在同一个域名时，浏览器要先把图片读下来，图片所在 Bucket 需要允许跨域：
   - 来源：网页域名，或 `*`
   - 方法：`GET`、`HEAD`

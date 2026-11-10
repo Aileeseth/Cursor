@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>图片预览</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2312130f'/%3E%3Crect x='4' y='8' width='24' height='14' rx='1.5' fill='none' stroke='%23f4efe6' stroke-width='1.6'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --ink: #f4efe6;
+      --muted: #b7ad9d;
+      --line: rgba(244, 239, 230, 0.16);
+      --danger: #ffb4a8;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { height: 100%; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      color: var(--ink);
+      background:
+        radial-gradient(920px 540px at 50% 40%, rgba(214, 176, 122, 0.16), transparent 68%),
+        #12130f;
+      font-family: "Avenir Next", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", "WenQuanYi Micro Hei", sans-serif;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.35;
+      background-image: radial-gradient(rgba(255, 255, 255, 0.045) 0.6px, transparent 0.6px);
+      background-size: 3px 3px;
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: safe center;
+      gap: 22px;
+      padding: 28px 20px 32px;
+    }
+
+    .panel {
+      width: min(1120px, calc(100vw - 48px));
+      width: min(1120px, calc(100vw - 48px), calc(max(200px, 100dvh - 280px) * 16 / 9));
+    }
+
+    .top {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    h1 {
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Songti SC", "Noto Serif SC", "STSong", "WenQuanYi Micro Hei", serif;
+      font-size: 28px;
+      font-weight: 560;
+      letter-spacing: 0.04em;
+    }
+
+    .top p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      letter-spacing: 0.08em;
+    }
+
+    .mount {
+      padding: 16px 16px 12px;
+      border-radius: 18px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 28%),
+        linear-gradient(180deg, #3a332b, #262119);
+      box-shadow:
+        0 24px 70px rgba(0, 0, 0, 0.38),
+        inset 0 1px 0 rgba(255, 255, 255, 0.16);
+    }
+
+    .stage {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      overflow: hidden;
+      border-radius: 4px;
+      background: #0b0b09;
+    }
+
+    .fill,
+    .photo {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .fill {
+      object-fit: cover;
+      filter: blur(26px) saturate(1.05);
+      transform: scale(1.08);
+      opacity: 0.55;
+    }
+
+    .photo {
+      object-fit: contain;
+    }
+
+    .empty,
+    .status {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 24px;
+      text-align: center;
+    }
+
+    .empty[hidden],
+    .status[hidden],
+    .fill[hidden],
+    .photo[hidden] {
+      display: none !important;
+    }
+
+    .empty-title,
+    .status {
+      margin: 0;
+      font-size: 16px;
+    }
+
+    .status { flex-direction: row; }
+
+    code {
+      max-width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      color: #efe6d4;
+      font-family: "IBM Plex Mono", "Source Code Pro", ui-monospace, monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
+    .empty-note {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .mat-caption {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 28px;
+      padding: 10px 4px 2px;
+    }
+
+    .mat-caption p {
+      margin: 0;
+      font-size: 13px;
+      color: #e6dccb;
+    }
+
+    #caption {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .ratio {
+      flex: none;
+      letter-spacing: 0.14em;
+      color: #c8b89a;
+    }
+
+    .bar {
+      display: flex;
+      gap: 10px;
+    }
+
+    input {
+      flex: 1;
+      min-width: 0;
+      height: 46px;
+      padding: 0 16px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--ink);
+      font: inherit;
+      font-size: 14px;
+    }
+
+    input::placeholder { color: #8d8476; }
+
+    input:focus,
+    button:focus-visible {
+      outline: 2px solid rgba(232, 205, 160, 0.85);
+      outline-offset: 2px;
+    }
+
+    button {
+      height: 46px;
+      padding: 0 18px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--ink);
+      font: inherit;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    button:hover { background: rgba(255, 255, 255, 0.05); }
+
+    #save {
+      border-color: transparent;
+      background: var(--ink);
+      color: #1b1814;
+      font-weight: 650;
+    }
+
+    #save:hover { background: #fffaf2; }
+
+    #save:disabled {
+      background: #3a342c;
+      color: #8f8678;
+      cursor: not-allowed;
+    }
+
+    .hint {
+      min-height: 20px;
+      margin: -8px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .hint.error { color: var(--danger); }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(244, 239, 230, 0.25);
+      border-top-color: var(--ink);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    .sr {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 720px) {
+      h1 { font-size: 22px; }
+      .top p { display: none; }
+      .bar { flex-wrap: wrap; }
+      input { flex: 1 1 100%; }
+      #load, #save { flex: 1; }
+      code { font-size: 11px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .spinner { animation: none; }
+      .fill { transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="top panel">
+      <h1>图片预览</h1>
+      <p>16:9 画面</p>
+    </header>
+
+    <section class="mount panel" aria-label="16:9 画面">
+      <div class="stage" id="stage">
+        <img class="fill" id="fill" alt="" hidden>
+        <img class="photo" id="photo" alt="" hidden>
+        <div class="empty" id="empty">
+          <p class="empty-title">在网址后面加上图片地址</p>
+          <code>?url=https://bucket.oss-cn-hangzhou.aliyuncs.com/photo.jpg</code>
+          <p class="empty-note">也可以把地址贴到下面。带签名的链接用输入框粘贴，&amp; 会被正确保留。</p>
+        </div>
+        <div class="status" id="status" hidden>
+          <span class="spinner" aria-hidden="true"></span>
+          <span id="status-text">正在加载</span>
+        </div>
+      </div>
+      <div class="mat-caption">
+        <p id="caption">尚未加载图片</p>
+        <p class="ratio">16:9</p>
+      </div>
+    </section>
+
+    <form class="bar panel" id="form">
+      <label class="sr" for="url-input">图片地址</label>
+      <input id="url-input" name="url" placeholder="粘贴 OSS 图片地址" autocomplete="off" spellcheck="false">
+      <button type="submit" id="load">加载</button>
+      <button type="button" id="save" disabled>保存图片</button>
+    </form>
+    <p class="hint panel" id="hint" role="status"></p>
+  </div>
+
+  <script>
+    const input = document.getElementById("url-input");
+    const photo = document.getElementById("photo");
+    const fill = document.getElementById("fill");
+    const empty = document.getElementById("empty");
+    const status = document.getElementById("status");
+    const statusText = document.getElementById("status-text");
+    const caption = document.getElementById("caption");
+    const hint = document.getElementById("hint");
+    const saveButton = document.getElementById("save");
+    const form = document.getElementById("form");
+
+    let currentUrl = "";
+    let requestId = 0;
+    let readyBlob = null;
+    let readyName = "";
+
+    function resetSave() {
+      readyBlob = null;
+      readyName = "";
+      saveButton.textContent = "保存图片";
+    }
+
+    function rawHash() {
+      const href = location.href;
+      const mark = href.indexOf("#");
+      return mark === -1 ? "" : href.slice(mark + 1);
+    }
+
+    function requestedUrl() {
+      const query = new URLSearchParams(location.search);
+      for (const name of ["url", "src", "img", "image"]) {
+        const value = query.get(name);
+        if (value && value.trim()) return value.trim();
+      }
+      const key = query.get("key") || query.get("path");
+      if (key && key.trim()) return fromKey(key);
+      const hash = rawHash().trim();
+      if (!hash) return "";
+      const decoded = /^https?%3A/i.test(hash) ? safeDecode(hash) : hash;
+      if (/^https?:\/\//i.test(decoded)) return decoded;
+      return fromKey(decoded);
+    }
+
+    function fromKey(key) {
+      const clean = key.trim().replace(/^\/+/, "");
+      if (/^https?:\/\//i.test(clean)) return clean;
+      return location.origin + "/" + clean;
+    }
+
+    function safeDecode(value) {
+      try { return decodeURIComponent(value); } catch { return value; }
+    }
+
+    function accepted(value) {
+      if (!value || value.length > 16000) return false;
+      try {
+        const url = new URL(value);
+        return url.protocol === "http:" || url.protocol === "https:";
+      } catch {
+        return false;
+      }
+    }
+
+    function sanitize(name) {
+      const clean = name.replace(/[\u0000-\u001f\\/:*?"<>|]/g, "_").trim().slice(0, 180);
+      return clean || "image";
+    }
+
+    function filenameFromUrl(url) {
+      try {
+        const base = new URL(url).pathname.split("/").filter(Boolean).pop() || "image";
+        return sanitize(safeDecode(base));
+      } catch {
+        return "image";
+      }
+    }
+
+    function extensionFor(type) {
+      const map = {
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+        "image/gif": ".gif",
+        "image/avif": ".avif",
+        "image/bmp": ".bmp",
+        "image/svg+xml": ".svg"
+      };
+      return map[(type || "").split(";")[0].trim().toLowerCase()] || "";
+    }
+
+    function filenameFromResponse(url, response) {
+      const header = response.headers.get("content-disposition") || "";
+      const encoded = header.match(/filename\*=UTF-8''([^;]+)/i);
+      if (encoded) return ensureExtension(sanitize(safeDecode(encoded[1])), response);
+      const plain = header.match(/filename="?([^";]+)"?/i);
+      if (plain && plain[1] !== "attachment") return ensureExtension(sanitize(plain[1]), response);
+      return ensureExtension(filenameFromUrl(url), response);
+    }
+
+    function ensureExtension(name, response) {
+      if (/\.[A-Za-z0-9]{2,5}$/.test(name)) return name;
+      return name + (extensionFor(response.headers.get("content-type")) || ".jpg");
+    }
+
+    function setHint(message, isError) {
+      hint.textContent = message || "";
+      hint.classList.toggle("error", Boolean(isError));
+    }
+
+    function setLoading(text) {
+      empty.hidden = true;
+      photo.hidden = true;
+      fill.hidden = true;
+      status.hidden = false;
+      statusText.textContent = text;
+    }
+
+    function showEmpty(message) {
+      currentUrl = "";
+      requestId += 1;
+      resetSave();
+      photo.removeAttribute("src");
+      fill.removeAttribute("src");
+      photo.hidden = true;
+      fill.hidden = true;
+      status.hidden = true;
+      empty.hidden = false;
+      saveButton.disabled = true;
+      caption.textContent = "尚未加载图片";
+      document.title = "图片预览";
+      if (message) setHint(message, true);
+    }
+
+    function showImage(url) {
+      if (!accepted(url)) {
+        showEmpty("请使用 http 或 https 图片地址。");
+        return;
+      }
+      const id = ++requestId;
+      currentUrl = url;
+      input.value = url;
+      resetSave();
+      saveButton.disabled = true;
+      setHint("");
+      setLoading("正在加载");
+      caption.textContent = filenameFromUrl(url);
+
+      const loader = new Image();
+      loader.onload = function () {
+        if (id !== requestId) return;
+        photo.src = url;
+        fill.src = url;
+        photo.alt = filenameFromUrl(url);
+        photo.hidden = false;
+        fill.hidden = false;
+        status.hidden = true;
+        const name = filenameFromUrl(url);
+        caption.textContent = name + " · " + loader.naturalWidth + "×" + loader.naturalHeight;
+        document.title = name;
+        if (new URL(url).origin === location.origin) {
+          saveButton.disabled = false;
+          return;
+        }
+        saveButton.textContent = "正在准备…";
+        prepareSave(url, id);
+      };
+      loader.onerror = function () {
+        if (id !== requestId) return;
+        currentUrl = "";
+        saveButton.disabled = true;
+        status.hidden = true;
+        empty.hidden = false;
+        caption.textContent = "加载失败";
+        setHint("图片加载失败。请确认地址可以公开访问，或换一条未过期的签名链接。", true);
+      };
+      loader.src = url;
+    }
+
+    async function prepareSave(url, id) {
+      try {
+        const response = await fetch(url, { mode: "cors", credentials: "omit" });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        const blob = await response.blob();
+        if (id !== requestId) return;
+        readyBlob = blob;
+        readyName = filenameFromResponse(url, response);
+        saveButton.textContent = "保存图片";
+        saveButton.disabled = false;
+      } catch {
+        if (id !== requestId) return;
+        readyBlob = null;
+        saveButton.textContent = "保存图片";
+        saveButton.disabled = false;
+        setHint("没法直接保存。图片和网页不在同一域名时，要在图片所在 Bucket 允许这个网页跨域读取（GET）。", true);
+      }
+    }
+
+    function triggerDownload(href, name) {
+      const link = document.createElement("a");
+      link.href = href;
+      link.download = name;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+
+    function saveImage() {
+      if (!currentUrl || saveButton.disabled) return;
+      const url = currentUrl;
+      if (new URL(url).origin === location.origin) {
+        triggerDownload(url, filenameFromUrl(url));
+        setHint("已开始下载。");
+        return;
+      }
+      if (readyBlob) {
+        const objectUrl = URL.createObjectURL(readyBlob);
+        triggerDownload(objectUrl, readyName || filenameFromUrl(url));
+        setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 4000);
+        setHint("已开始下载。");
+        return;
+      }
+      setHint("没法直接保存。图片和网页不在同一域名时，要在图片所在 Bucket 允许这个网页跨域读取（GET）。", true);
+    }
+
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      const value = input.value.trim();
+      if (!accepted(value)) {
+        setHint("请输入以 http 或 https 开头的图片地址。", true);
+        return;
+      }
+      const next = new URL(location.href);
+      next.hash = "";
+      next.search = "";
+      next.searchParams.set("url", value);
+      history.replaceState(null, "", next);
+      showImage(value);
+    });
+
+    saveButton.addEventListener("click", saveImage);
+    window.addEventListener("hashchange", function () {
+      const url = requestedUrl();
+      if (url) showImage(url);
+    });
+
+    const initial = requestedUrl();
+    if (initial) showImage(initial);
+  </script>
+</body>
+</html>
